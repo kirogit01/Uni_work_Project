@@ -314,36 +314,50 @@ textarea{resize:none;height:80px;}
 
 <!-- PAYMENTS -->
 <!-- PAYMENTS -->
+<!-- PAYMENTS -->
 <div class="section" id="payments">
-    <h2>Pending Payments</h2>
+    <h2>Payments to Students</h2>
     <?php
-    $unpaid = $conn->query("
-        SELECT ja.id AS app_id, u.username, u.id_no, j.title, j.company
-        FROM job_applications ja
-        JOIN users u ON ja.student_id = u.id
-        JOIN jobs j ON ja.job_id = j.id
-        WHERE ja.paid = 0 AND j.employee_id = $employee_id
-        ORDER BY ja.id DESC
-    ");
-    if($unpaid->num_rows == 0){
-        echo "<p>No pending payments.</p>";
-    } else {
-        while($u = $unpaid->fetch_assoc()){
+    $stmt = $conn->prepare(
+        "SELECT job_applications.id, job_applications.amount, users.username, users.id_no, jobs.title, jobs.company
+        FROM job_applications
+        INNER JOIN users ON job_applications.student_id = users.id
+        INNER JOIN jobs ON job_applications.job_id = jobs.id
+        WHERE job_applications.paid = 0 AND jobs.employee_id = ?
+        ORDER BY job_applications.id DESC"
+    );
+
+    if($stmt){
+        $stmt->bind_param("i", $employee_id);
+        if($stmt->execute()){
+            $result = $stmt->get_result();
+            if($result && $result->num_rows > 0){
+                while($row = $result->fetch_assoc()):
     ?>
     <div style="border:1px solid #ccc;padding:8px;margin-bottom:6px;border-radius:8px;">
-        <b>Job:</b> <?= $u['title']; ?> (<?= $u['company']; ?>)<br>
-        <b>Student:</b> <?= $u['username']; ?> (<?= $u['id_no']; ?>)<br>
+        <b>Student:</b> <?= htmlspecialchars($row['username']); ?> (<?= htmlspecialchars($row['id_no']); ?>)<br>
+        <b>Job:</b> <?= htmlspecialchars($row['title']); ?> (<?= htmlspecialchars($row['company']); ?>)<br>
         <form method="POST" class="payment-form">
-            <input type="hidden" name="application_id" value="<?= $u['app_id']; ?>">
+            <input type="hidden" name="application_id" value="<?= $row['id']; ?>">
             <input type="number" name="amount" placeholder="Amount" required>
             <button type="submit" name="pay_student">Pay</button>
         </form>
     </div>
     <?php
-        } // end while
-    } // end else
+                endwhile;
+            } else {
+                echo "<p>No pending payments.</p>";
+            }
+        } else {
+            echo "<p>Execution failed: ".$stmt->error."</p>";
+        }
+        $stmt->close();
+    } else {
+        echo "<p>Preparation failed: ".$conn->error."</p>";
+    }
     ?>
 </div>
+
 
 
 <!-- NOTIFICATIONS -->
